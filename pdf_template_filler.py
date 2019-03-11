@@ -7,7 +7,7 @@ import csv
 import sys
 import os
 
-from PyQt5 import QtCore, QtWidgets, QtGui, uic
+from PyQt5 import QtCore, QtWidgets, uic
 from PyQt5.QtCore import pyqtSignal
 
 class fieldLoader(QtCore.QThread):
@@ -58,14 +58,14 @@ class generateFields(QtCore.QThread):
     def __init__(self, parent=None):
         super(generateFields, self).__init__(parent)
 
-    def setup(self, template, csvFile, csvColumns, outputDir, fieldData, fieldOrder, ignoreFirstRow):
+    def setup(self, template, csvFile, csvColumns, outputDir, fieldData, fieldOrder, hasHeaders):
         self.template = template
         self.csvFile = csvFile
         self.csvColumns = csvColumns
         self.outputDir = outputDir
         self.fieldData = fieldData
         self.fieldOrder = fieldOrder
-        self.ignoreFirstRow = ignoreFirstRow
+        self.hasHeaders = hasHeaders
 
         self.csvData = None
 
@@ -76,8 +76,11 @@ class generateFields(QtCore.QThread):
         self.csvData = list()
         with open(self.csvFile, "r") as f:
             reader = csv.reader(f)
-            if self.ignoreFirstRow:
-                next(reader)
+            if self.hasHeaders:
+                headers = next(reader)
+            else:
+                headers = None
+
             for row in reader:
                 thisRow = dict()
                 for column, each in enumerate(row):
@@ -97,16 +100,6 @@ class generateFields(QtCore.QThread):
                         thisColumn = (fieldName, eachRow[self.fieldData[fieldName][1]])
                     thisRowFields.append(thisColumn)
             fields.append(thisRowFields)
-
-        # fdf = forge_fdf("", fields, [], [], [])
-        # out_filename = self.outputDir + "\\" + names_list[eachNum].replace(" ", "_") + ".pdf"
-        # fdf_file_name = out_filename + ".fdf"
-        # fdf_file = open(fdf_file_name, "wb")
-        # fdf_file.write(fdf)
-        # fdf_file.close()
-        # subprocess.Popen("pdftk Certificate.pdf fill_form " + fdf_file_name + " output " +
-        #              out_filename)
-
         self.finished.emit(fields)
 
 class genDocument(QtCore.QThread):
@@ -134,6 +127,36 @@ class genDocument(QtCore.QThread):
         subprocess.call("del " + fdf_filename, shell=True)
         self.finished.emit(self.uuid)
 
+class previewWindow(QtWidgets.QWidget):
+    backSignal = pyqtSignal()
+    nextSignal = pyqtSignal()
+    def __init__(self):
+        super(previewWindow, self).__init__(parent=None)
+
+    def setup(self, fields, nameColumn):
+        self.backButton.clicked.connect(self.backSignalFunction)
+        self.nextButton.clicked.connect(self.nextSignalFunction)
+        
+        self.tableWidget.setColumnCount(len(fields[0])+1)
+        headers = [i[0] for i in fields[0]]
+        headers.append("Filename")
+        print("headers: {}".format(headers))
+        self.tableWidget.setHorizontalHeaderLabels(headers)
+
+        for eachRow in fields:
+            row = self.tableWidget.rowCount()
+            self.tableWidget.insertRow(row)
+            for col, eachColumn in enumerate(eachRow):
+                print("doing col: {} with: {}".format(col, eachColumn))
+                self.tableWidget.setItem(row, col, QtWidgets.QTableWidgetItem(eachColumn[1]))
+            filename = eachRow[nameColumn][1].replace(" ", "_") + ".pdf"
+            self.tableWidget.setItem(row, self.tableWidget.columnCount()-1, QtWidgets.QTableWidgetItem(filename))
+
+    def backSignalFunction(self):
+        self.backSignal.emit()
+
+    def nextSignalFunction(self):
+        self.nextSignal.emit()
 
 class mainWindow(QtWidgets.QWidget):
     def __init__(self, parent=None):
@@ -175,17 +198,30 @@ class mainWindow(QtWidgets.QWidget):
         else:
             self.filenameColumn = self.csvFieldNumberList[0]
             if self.checkBox.isChecked():
-                ignoreFirstRow = True
+                hasHeaders = True
             else:
-                ignoreFirstRow = False
-            self.myGen.setup(self.templateLineEdit.text(), self.csvLineEdit.text(), self.csvFieldNumberList, self.outputDir, self.fieldFillData, self.fieldFillOrder, ignoreFirstRow)
+                hasHeaders = False
+            self.myGen.setup(self.templateLineEdit.text(), self.csvLineEdit.text(), self.csvFieldNumberList, self.outputDir, self.fieldFillData, self.fieldFillOrder, hasHeaders)
             self.myGen.start()
 
     def genFieldsFinished(self, fields):
         print(fields)
         self.fields = fields
-        #start the first thread
+        thispreviewWindow = previewWindow()
+        self.previewWindow = uic.loadUi("preview.ui", baseinstance=thispreviewWindow)
+        self.previewWindow.setup(fields, self.filenameColumn)
+        self.previewWindow.backSignal.connect(self.previewBack)
+        self.previewWindow.nextSignal.connect(self.previewNext)
+        self.hide()
+        self.previewWindow.show()
+    
+    def previewNext(self):
+
         self.startDocumentThread()
+    
+    def previewBack(self):
+        self.previewWindow.close()
+        self.show()
 
     def startDocumentThread(self):
         while len(self.fields) > 0 and self.runningThreads < self.maxThreads:
@@ -199,6 +235,10 @@ class mainWindow(QtWidgets.QWidget):
             newThread.finished.connect(self.threadFinished)
             newThread.start()
             self.threadList[thisuuid] = newThread
+        else:
+            if len(self.fields) == 0:
+                self.hide()
+                self.genDocumentsFinished()
 
     def threadFinished(self, thisuuid):
         print("Finished uuid: {}".format(thisuuid))
@@ -206,14 +246,12 @@ class mainWindow(QtWidgets.QWidget):
         self.startDocumentThread()
         if thisThread == None:
             print("error, thread id not found!!")
-            
-            
-
-
-
+     
     def genDocumentsFinished(self):
-        QtWidgets.QMessageBox.information(
+        reply = QtWidgets.QMessageBox.information(
                 self, 'Completed', "All files Generated.", QtWidgets.QMessageBox.Ok)
+        if reply:
+            self.close()
 
     def unlinkAction(self):
         templateSelection = self.tableWidget.selectedIndexes()
@@ -239,7 +277,6 @@ class mainWindow(QtWidgets.QWidget):
                 QtWidgets.QMessageBox.information(
                 self, 'No Link', "Nothing to unlink.", QtWidgets.QMessageBox.Ok)
 
-
     def linkAction(self):
         templateSelection = self.tableWidget.selectedIndexes()
         columnSelection = self.csvTable.selectedIndexes()
@@ -262,9 +299,6 @@ class mainWindow(QtWidgets.QWidget):
             signalBocker = QtCore.QSignalBlocker(self.tableWidget)
             item.setText("LINK: {}".format(csvRow+1))
 
-
-
-
     def loadCsvColumns(self):
         fileDialog = QtWidgets.QFileDialog()
         fileDialog.setFileMode(QtWidgets.QFileDialog.ExistingFile)
@@ -282,7 +316,6 @@ class mainWindow(QtWidgets.QWidget):
                     rowNumber = self.csvTable.rowCount()
                     self.csvTable.insertRow(rowNumber)
                     self.csvTable.setItem(rowNumber, 0, QtWidgets.QTableWidgetItem(each))
-
 
     def loadTemplateFields(self):
         print("button clicked")
@@ -337,9 +370,6 @@ class mainWindow(QtWidgets.QWidget):
             self.templateLineEdit.setText("")
             QtWidgets.QMessageBox.information(
                 self, 'No Fillable Fields', "PDF Template Filler only works on documents with fillable forms", QtWidgets.QMessageBox.Ok)
-
-
-
 
     def tableItemChanged(self, tableItem):
         print("item changed: {}".format(tableItem.text()))
