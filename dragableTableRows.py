@@ -1,3 +1,4 @@
+#this code is from this stackover flow answer: https://stackoverflow.com/a/43789304/1994235
 import sys
 
 from PyQt5.QtCore import Qt
@@ -5,10 +6,13 @@ from PyQt5.QtGui import QDropEvent
 from PyQt5.QtWidgets import QTableWidget, QAbstractItemView, QTableWidgetItem, QWidget, QHBoxLayout, \
     QApplication
 
+from PyQt5 import uic
+
 
 class TableWidgetDragRows(QTableWidget):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        print("init dragrows")
 
         self.setDragEnabled(True)
         self.setAcceptDrops(True)
@@ -61,35 +65,48 @@ class TableWidgetDragRows(QTableWidget):
         return rect.contains(pos, True) and not (int(self.model().flags(index)) & Qt.ItemIsDropEnabled) and pos.y() >= rect.center().y()
 
 
-# class Window(QWidget):
-#     def __init__(self):
-#         super(Window, self).__init__()
 
-#         layout = QHBoxLayout()
-#         self.setLayout(layout)
-
-#         self.table_widget = TableWidgetDragRows()
-#         layout.addWidget(self.table_widget) 
-
-#         # setup table widget
-#         self.table_widget.setColumnCount(2)
-#         self.table_widget.setHorizontalHeaderLabels(['Type', 'Name'])
-
-#         items = [('Red', 'Toyota'), ('Blue', 'RV'), ('Green', 'Beetle'), ('Silver', 'Chevy'), ('Black', 'BMW')]
-#         self.table_widget.setRowCount(len(items))
-#         for i, (color, model) in enumerate(items):
-#             colorItem = QTableWidgetItem(color)
-#             modelItem = QTableWidgetItem(model)
-#             modelItem.setFlags(Qt.ItemNeverHasChildren | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
-#             colorItem.setFlags(Qt.ItemNeverHasChildren | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
-#             self.table_widget.setItem(i, 0, colorItem)
-#             self.table_widget.setItem(i, 1, modelItem)
-
-#         self.resize(400, 400)
-#         self.show()
 
 
 if __name__ == '__main__':
+
+    class Window(QWidget):
+        def __init__(self):
+            super(Window, self).__init__()
+
+            layout = QHBoxLayout()
+            self.setLayout(layout)
+
+            self.table_widget = TableWidgetDragRows()
+            layout.addWidget(self.table_widget) 
+
+            # setup table widget
+            self.table_widget.setColumnCount(2)
+            self.table_widget.setHorizontalHeaderLabels(['Type', 'Name'])
+
+            items = [('Red', 'Toyota'), ('Blue', 'RV'), ('Green', 'Beetle'), ('Silver', 'Chevy'), ('Black', 'BMW')]
+            self.table_widget.setRowCount(len(items))
+            for i, (color, model) in enumerate(items):
+                colorItem = QTableWidgetItem(color)
+                modelItem = QTableWidgetItem(model)
+                modelItem.setFlags(Qt.ItemNeverHasChildren | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+                colorItem.setFlags(Qt.ItemNeverHasChildren | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+                self.table_widget.setItem(i, 0, colorItem)
+                self.table_widget.setItem(i, 1, modelItem)
+
+            self.resize(400, 400)
+            self.show()
+
     app = QApplication(sys.argv)
-    window = Window()
+    window = uic.loadUi("untitled2.ui")
+    items = [('Red', 'Toyota'), ('Blue', 'RV'), ('Green', 'Beetle'), ('Silver', 'Chevy'), ('Black', 'BMW')]
+    window.tableWidget.setRowCount(len(items))
+    for i, (color, model) in enumerate(items):
+        colorItem = QTableWidgetItem(color)
+        modelItem = QTableWidgetItem(model)
+        modelItem.setFlags(Qt.ItemNeverHasChildren | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+        colorItem.setFlags(Qt.ItemNeverHasChildren | Qt.ItemIsEnabled | Qt.ItemIsDragEnabled | Qt.ItemIsSelectable | Qt.ItemIsEditable)
+        window.tableWidget.setItem(i, 0, colorItem)
+        window.tableWidget.setItem(i, 1, modelItem)
+    window.show()
     sys.exit(app.exec_())

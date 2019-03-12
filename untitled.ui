@@ -13,7 +13,7 @@
   <property name="windowTitle">
    <string>PDF Template Filler</string>
   </property>
-  <widget class="QTableWidget" name="tableWidget">
+  <widget class="TableWidgetDragRows" name="tableWidget">
    <property name="geometry">
     <rect>
      <x>10</x>
@@ -23,7 +23,7 @@
     </rect>
    </property>
    <property name="showDropIndicator" stdset="0">
-    <bool>false</bool>
+    <bool>true</bool>
    </property>
    <property name="dragEnabled">
     <bool>false</bool>
@@ -32,10 +32,10 @@
     <bool>false</bool>
    </property>
    <property name="dragDropMode">
-    <enum>QAbstractItemView::NoDragDrop</enum>
+    <enum>QAbstractItemView::InternalMove</enum>
    </property>
    <property name="defaultDropAction">
-    <enum>Qt::IgnoreAction</enum>
+    <enum>Qt::TargetMoveAction</enum>
    </property>
    <property name="alternatingRowColors">
     <bool>true</bool>
@@ -46,6 +46,21 @@
    <property name="selectionBehavior">
     <enum>QAbstractItemView::SelectRows</enum>
    </property>
+   <column>
+    <property name="text">
+     <string>Name</string>
+    </property>
+   </column>
+   <column>
+    <property name="text">
+     <string>Type</string>
+    </property>
+   </column>
+   <column>
+    <property name="text">
+     <string>Data/Link</string>
+    </property>
+   </column>
   </widget>
   <widget class="QLabel" name="label_3">
    <property name="geometry">
@@ -333,6 +348,13 @@
    </layout>
   </widget>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>TableWidgetDragRows</class>
+   <extends>QTableWidget</extends>
+   <header>dragableTableRows.h</header>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
