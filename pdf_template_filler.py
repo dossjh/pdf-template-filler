@@ -10,6 +10,10 @@ import os
 from PyQt5 import QtCore, QtWidgets, uic
 from PyQt5.QtCore import pyqtSignal
 
+#defines for columns
+dataColumn = 2
+filenameColumn = 3
+
 class fieldLoader(QtCore.QThread):
     loadFinished = pyqtSignal(list)
     updateProgress = pyqtSignal(int)
@@ -58,49 +62,43 @@ class generateFields(QtCore.QThread):
     def __init__(self, parent=None):
         super(generateFields, self).__init__(parent)
 
-    def setup(self, template, csvFile, csvColumns, outputDir, fieldData, fieldOrder, hasHeaders):
-        self.template = template
+    def setup(self, csvFile, fieldData, CSVhasHeaders):
         self.csvFile = csvFile
-        self.csvColumns = csvColumns
-        self.outputDir = outputDir
         self.fieldData = fieldData
-        self.fieldOrder = fieldOrder
-        self.hasHeaders = hasHeaders
-
-        self.csvData = None
+        self.CSVhasHeaders = hasHeaders
 
     def run(self):
         print("started document generation")
 
         #build field list from CSV file
-        self.csvData = list()
-        with open(self.csvFile, "r") as f:
-            reader = csv.reader(f)
-            if self.hasHeaders:
-                headers = next(reader)
-            else:
-                headers = None
+        # self.csvData = list()
+        # with open(self.csvFile, "r") as f:
+        #     reader = csv.reader(f)
+        #     if self.hasHeaders:
+        #         headers = next(reader)
+        #     else:
+        #         headers = None
 
-            for row in reader:
-                thisRow = dict()
-                for column, each in enumerate(row):
-                    if column in self.csvColumns:
-                        thisRow[column] = each
-                self.csvData.append(thisRow)
-        fields = list()
-        for eachRow in self.csvData:
-            # fields = [('name', names_list[eachNum])]
-            #build fields
-            thisRowFields = list()
-            for fieldName in self.fieldData.keys():
-                if self.fieldData[fieldName] is not None:
-                    if self.fieldData[fieldName][0] is "data":
-                        thisColumn = (fieldName, self.fieldData[fieldName][1])
-                    if self.fieldData[fieldName][0] is "link":
-                        thisColumn = (fieldName, eachRow[self.fieldData[fieldName][1]])
-                    thisRowFields.append(thisColumn)
-            fields.append(thisRowFields)
-        self.finished.emit(fields)
+        #     for row in reader:
+        #         thisRow = dict()
+        #         for column, each in enumerate(row):
+        #             if column in self.csvColumns:
+        #                 thisRow[column] = each
+        #         csvData.append(thisRow)
+        # rows = dict()
+        # for eachRow in csvData:
+        #     # fields = [('name', names_list[eachNum])]
+        #     #build fields
+        #     thisRowFields = list()
+        #     for eachCol in range(len(self.fieldData)):
+        #         if self.fieldData[eachCol] is not None:
+        #             if self.fieldData[fieldName][0] is "data":
+        #                 thisColumn = (fieldName, self.fieldData[fieldName][1])
+        #             if self.fieldData[fieldName][0] is "link":
+        #                 thisColumn = (fieldName, eachRow[self.fieldData[fieldName][1]])
+        #             thisRowFields.append(thisColumn)
+        #     rows.append(thisRowFields)
+        self.finished.emit("not working")
 
 class genDocument(QtCore.QThread):
     finished = pyqtSignal(str)
@@ -175,11 +173,28 @@ class mainWindow(QtWidgets.QWidget):
         self.genButton.clicked.connect(self.generatorAction)
         self.tableWidget.itemChanged[QtWidgets.QTableWidgetItem].connect(self.tableItemChanged)
 
+        self.debugPushButton.clicked.connect(self.debugAction)
+
         self.numberLinks = 0
 
         self.maxThreads = 1
         self.runningThreads = 0
         self.threadList = dict()
+
+    def debugAction(self):
+        templateSelection = self.tableWidget.selectedIndexes()
+        if len(templateSelection) != 4:
+            QtWidgets.QMessageBox.information(
+                self, 'Wrong Selection', "Please unlink one field at a time.", QtWidgets.QMessageBox.Ok)
+        else:
+            templateRow = templateSelection[2].row()
+            model = self.tableWidget.model()
+            index = model.createIndex(templateRow, dataColumn)
+            currentLink = model.data(index, QtCore.Qt.UserRole)
+            if currentLink is not None:
+                self.debugLineEdit.setText("{}, {}, {}".format(currentLink[0], currentLink[1], currentLink[2]))
+            else:
+                self.debugLineEdit.setText("None")
 
     def generatorAction(self):
         self.myGen = generateFields(self)
@@ -261,7 +276,7 @@ class mainWindow(QtWidgets.QWidget):
         else:
             templateRow = templateSelection[2].row()
             model = self.tableWidget.model()
-            index = model.createIndex(templateRow, 2)
+            index = model.createIndex(templateRow, dataColumn)
             currentLink = model.data(index, QtCore.Qt.UserRole)
             if currentLink is None:
                 QtWidgets.QMessageBox.information(
@@ -275,20 +290,23 @@ class mainWindow(QtWidgets.QWidget):
                         self, 'Opps', "This is already the filename......", QtWidgets.QMessageBox.Ok)
                 else:
                     signalBocker = QtCore.QSignalBlocker(self.tableWidget)
-                    newLink =  currentLink[:-1] + (True,)
-                    model.setData(index, newLink, QtCore.Qt.UserRole)
-                    self.tableWidget.item(templateRow, 3).setText("Yes")
-                    print("setting Name: {}\nnewLink: {}".format(templateRow,newLink))
+
+                    #remove current filename
                     for eachRow in range(self.tableWidget.rowCount()):
-                        eachIndex = model.createIndex(eachRow, 2)
+                        eachIndex = model.createIndex(eachRow, dataColumn)
                         itemType = model.data(eachIndex, QtCore.Qt.UserRole)
                         if itemType is not None:
                             if itemType[2] == True:
-                                self.tableWidget.item(eachRow, 3).setText("No")
+                                self.tableWidget.item(eachRow, filenameColumn).setText("No")
                                 newItemType = itemType[:-1] + (False,)
                                 model.setData(eachIndex, newItemType, QtCore.Qt.UserRole)
                                 break
-
+                        else:
+                            print("itemType is none")
+                    #set new filename
+                    newLink =  currentLink[:-1] + (True,)
+                    model.setData(index, newLink, QtCore.Qt.UserRole)
+                    self.tableWidget.item(templateRow, filenameColumn).setText("Yes")
 
     def unlinkAction(self):
         templateSelection = self.tableWidget.selectedIndexes()
@@ -297,9 +315,8 @@ class mainWindow(QtWidgets.QWidget):
                 self, 'Wrong Selection', "Please unlink one field at a time.", QtWidgets.QMessageBox.Ok)
         else:
             templateRow = templateSelection[2].row()
-            templateCol = templateSelection[2].column()
             model = self.tableWidget.model()
-            index = model.createIndex(templateRow, templateCol)
+            index = model.createIndex(templateRow, dataColumn)
             currentLink = model.data(index, QtCore.Qt.UserRole)
             print("currentLink: {}".format(currentLink))
             if currentLink is not None:
@@ -310,14 +327,14 @@ class mainWindow(QtWidgets.QWidget):
                     item.setText("")
                     self.numberLinks = self.numberLinks - 1
                     if currentLink[2]:
-                        self.tableWidget.item(templateSelection[2].row(), 3).setText("No")
+                        self.tableWidget.item(templateSelection[2].row(), filenameColumn).setText("No")
                         if self.numberLinks > 0:
                             for eachRow in range(self.tableWidget.rowCount()):
-                                eachIndex = model.createIndex(eachRow, 2)
+                                eachIndex = model.createIndex(eachRow, dataColumn)
                                 itemType = model.data(eachIndex, QtCore.Qt.UserRole)
                                 if itemType is not None:
                                     if itemType[0] == "link":
-                                        self.tableWidget.item(eachRow, 3).setText("Yes")
+                                        self.tableWidget.item(eachRow, filenameColumn).setText("Yes")
                                         newItemType = itemType[:-1] + (True,)
                                         model.setData(eachIndex, newItemType, QtCore.Qt.UserRole)
                                         break
@@ -345,14 +362,13 @@ class mainWindow(QtWidgets.QWidget):
                 self, 'Wrong Selection', "You must select exactly 1 field and 1 column!", QtWidgets.QMessageBox.Ok)
         else:
             print("link Action!")
-            templateRow = templateSelection[0].row()
             csvRow = columnSelection[0].row()
             item = self.tableWidget.item(templateSelection[2].row(), templateSelection[2].column())
             signalBocker = QtCore.QSignalBlocker(self.tableWidget)
-            index = self.tableWidget.model().createIndex(templateSelection[2].row(), templateSelection[2].column())
+            index = self.tableWidget.model().createIndex(templateSelection[2].row(), dataColumn)
             useAsSaveName = True if self.numberLinks == 0 else False
             if useAsSaveName:
-                saveItem = self.tableWidget.item(templateSelection[2].row(), 3)
+                saveItem = self.tableWidget.item(templateSelection[2].row(), filenameColumn)
                 saveItem.setText("Yes")
             self.tableWidget.model().setData(index, ("link", csvRow, useAsSaveName), QtCore.Qt.UserRole)
             self.numberLinks = self.numberLinks + 1
