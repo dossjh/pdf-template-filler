@@ -71,20 +71,21 @@ class generateFields(QtCore.QThread):
         print("started document generation")
 
         #build field list from CSV file
-        # self.csvData = list()
-        # with open(self.csvFile, "r") as f:
-        #     reader = csv.reader(f)
-        #     if self.hasHeaders:
-        #         headers = next(reader)
-        #     else:
-        #         headers = None
+        self.csvData = list()
+        with open(self.csvFile, "r") as f:
+            reader = csv.reader(f)
+            if self.hasHeaders:
+                headers = next(reader)
+            else:
+                headers = None
 
-        #     for row in reader:
-        #         thisRow = dict()
-        #         for column, each in enumerate(row):
-        #             if column in self.csvColumns:
-        #                 thisRow[column] = each
-        #         csvData.append(thisRow)
+            for row in reader:
+                thisRow = dict()
+                for column, each in enumerate(row):
+                    if column in self.csvColumns:
+                        thisRow[column] = each
+                csvData.append(thisRow)
+
         # rows = dict()
         # for eachRow in csvData:
         #     # fields = [('name', names_list[eachNum])]
@@ -98,7 +99,7 @@ class generateFields(QtCore.QThread):
         #                 thisColumn = (fieldName, eachRow[self.fieldData[fieldName][1]])
         #             thisRowFields.append(thisColumn)
         #     rows.append(thisRowFields)
-        self.finished.emit("not working")
+        self.finished.emit(["not working"])
 
 class genDocument(QtCore.QThread):
     finished = pyqtSignal(str)
