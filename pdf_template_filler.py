@@ -169,33 +169,32 @@ class mainWindow(QtWidgets.QWidget):
         self.loadColumnsButton.clicked.connect(self.loadCsvColumns)
         self.linkColumnButton.clicked.connect(self.linkAction)
         self.unlinkColumnButton.clicked.connect(self.unlinkAction)
+        self.setNameButton.clicked.connect(self.setNameButtonAction)
         self.outputDirButton.clicked.connect(self.outputDirAction)
         self.helpButton.clicked.connect(self.helpAction)
         self.genButton.clicked.connect(self.generatorAction)
         self.tableWidget.itemChanged[QtWidgets.QTableWidgetItem].connect(self.tableItemChanged)
-        self.fieldFillData = None
-        self.fieldFillOrder = None
-        self.outputDir = None
-        self.csvFieldNumberList = list()
+
+        self.numberLinks = 0
 
         self.maxThreads = 1
         self.runningThreads = 0
         self.threadList = dict()
-        self.filenameColumn = None
-        self.fields = None
 
     def generatorAction(self):
         self.myGen = generateFields(self)
         self.myGen.finished.connect(self.genFieldsFinished)
         #template, csvFile, csvColumns, outputDir, fieldData, fieldOrder
-        if self.outputDir == None:
+        if self.outputLineEdit.text() == "":
             QtWidgets.QMessageBox.information(
                 self, 'No Output Directory Selected', "Please select an directory to save\ngenerated files to on the next screen.", QtWidgets.QMessageBox.Ok)
-            self.outputDirAction()
-        if len(self.csvFieldNumberList) == 0:
+            if not self.outputDirAction():
+                return
+        if self.numberLinks == 0:
             QtWidgets.QMessageBox.information(
                 self, 'No Link Columns', "Please link at least one column from the CSV table.", QtWidgets.QMessageBox.Ok)
         else:
+
             self.filenameColumn = self.csvFieldNumberList[0]
             if self.checkBox.isChecked():
                 hasHeaders = True
@@ -253,23 +252,75 @@ class mainWindow(QtWidgets.QWidget):
         if reply:
             self.close()
 
+    def setNameButtonAction(self):
+        print("setbuttonaction")
+        templateSelection = self.tableWidget.selectedIndexes()
+        if len(templateSelection) != 4:
+            QtWidgets.QMessageBox.information(
+                self, 'Wrong Selection', "You can only set 1 field to the filename.", QtWidgets.QMessageBox.Ok)
+        else:
+            templateRow = templateSelection[2].row()
+            model = self.tableWidget.model()
+            index = model.createIndex(templateRow, 2)
+            currentLink = model.data(index, QtCore.Qt.UserRole)
+            if currentLink is None:
+                QtWidgets.QMessageBox.information(
+                    self, 'Opps', "You can only set filename to linked fields.", QtWidgets.QMessageBox.Ok)
+            elif currentLink[0] != "link":
+                QtWidgets.QMessageBox.information(
+                    self, 'Opps', "You can only set filename to linked fields.", QtWidgets.QMessageBox.Ok)
+            else:
+                if currentLink[2]:
+                    QtWidgets.QMessageBox.information(
+                        self, 'Opps', "This is already the filename......", QtWidgets.QMessageBox.Ok)
+                else:
+                    signalBocker = QtCore.QSignalBlocker(self.tableWidget)
+                    newLink =  currentLink[:-1] + (True,)
+                    model.setData(index, newLink, QtCore.Qt.UserRole)
+                    self.tableWidget.item(templateRow, 3).setText("Yes")
+                    print("setting Name: {}\nnewLink: {}".format(templateRow,newLink))
+                    for eachRow in range(self.tableWidget.rowCount()):
+                        eachIndex = model.createIndex(eachRow, 2)
+                        itemType = model.data(eachIndex, QtCore.Qt.UserRole)
+                        if itemType is not None:
+                            if itemType[2] == True:
+                                self.tableWidget.item(eachRow, 3).setText("No")
+                                newItemType = itemType[:-1] + (False,)
+                                model.setData(eachIndex, newItemType, QtCore.Qt.UserRole)
+                                break
+
+
     def unlinkAction(self):
         templateSelection = self.tableWidget.selectedIndexes()
-        if len(templateSelection) != 3:
+        if len(templateSelection) != 4:
             QtWidgets.QMessageBox.information(
                 self, 'Wrong Selection', "Please unlink one field at a time.", QtWidgets.QMessageBox.Ok)
         else:
-            templateRow = templateSelection[0].row()
-            currentLink = self.fieldFillData[self.fieldFillOrder[templateRow]]
+            templateRow = templateSelection[2].row()
+            templateCol = templateSelection[2].column()
+            model = self.tableWidget.model()
+            index = model.createIndex(templateRow, templateCol)
+            currentLink = model.data(index, QtCore.Qt.UserRole)
+            print("currentLink: {}".format(currentLink))
             if currentLink is not None:
                 if currentLink[0] == "link":
-                    csvRow = currentLink[1]
-                    self.fieldFillData[self.fieldFillOrder[templateRow]] = None
-                    self.csvFieldNumberList.remove(csvRow)
-                    print("csvRows: {}".format(self.csvFieldNumberList))
-                    item = self.tableWidget.item(templateSelection[2].row(), templateSelection[2].column())
                     signalBocker = QtCore.QSignalBlocker(self.tableWidget)
+                    model.setData(index, None, QtCore.Qt.UserRole)     
+                    item = self.tableWidget.item(templateSelection[2].row(), templateSelection[2].column())
                     item.setText("")
+                    self.numberLinks = self.numberLinks - 1
+                    if currentLink[2]:
+                        self.tableWidget.item(templateSelection[2].row(), 3).setText("No")
+                        if self.numberLinks > 0:
+                            for eachRow in range(self.tableWidget.rowCount()):
+                                eachIndex = model.createIndex(eachRow, 2)
+                                itemType = model.data(eachIndex, QtCore.Qt.UserRole)
+                                if itemType is not None:
+                                    if itemType[0] == "link":
+                                        self.tableWidget.item(eachRow, 3).setText("Yes")
+                                        newItemType = itemType[:-1] + (True,)
+                                        model.setData(eachIndex, newItemType, QtCore.Qt.UserRole)
+                                        break
                 else:
                     QtWidgets.QMessageBox.information(
                     self, 'No Link', "Nothing to unlink.", QtWidgets.QMessageBox.Ok)
@@ -278,6 +329,10 @@ class mainWindow(QtWidgets.QWidget):
                 self, 'No Link', "Nothing to unlink.", QtWidgets.QMessageBox.Ok)
 
     def linkAction(self):
+        """Update the template table to display information about what will be in each document.
+            We are storing the actual information about the column to link to in the CSV file in
+            the userdata section of the model."""
+
         templateSelection = self.tableWidget.selectedIndexes()
         columnSelection = self.csvTable.selectedIndexes()
 
@@ -285,18 +340,23 @@ class mainWindow(QtWidgets.QWidget):
         print(columnSelection)
         print(len(templateSelection))
 
-        if len(templateSelection) != 3 or len(columnSelection) != 1:
+        if len(templateSelection) != 4 or len(columnSelection) != 1:
             QtWidgets.QMessageBox.information(
                 self, 'Wrong Selection', "You must select exactly 1 field and 1 column!", QtWidgets.QMessageBox.Ok)
         else:
             print("link Action!")
             templateRow = templateSelection[0].row()
             csvRow = columnSelection[0].row()
-            self.fieldFillData[self.fieldFillOrder[templateRow]] = ("link", csvRow)
-            self.csvFieldNumberList.append(csvRow)
-            print("csvRows: {}".format(self.csvFieldNumberList))
             item = self.tableWidget.item(templateSelection[2].row(), templateSelection[2].column())
             signalBocker = QtCore.QSignalBlocker(self.tableWidget)
+            index = self.tableWidget.model().createIndex(templateSelection[2].row(), templateSelection[2].column())
+            useAsSaveName = True if self.numberLinks == 0 else False
+            if useAsSaveName:
+                saveItem = self.tableWidget.item(templateSelection[2].row(), 3)
+                saveItem.setText("Yes")
+            self.tableWidget.model().setData(index, ("link", csvRow, useAsSaveName), QtCore.Qt.UserRole)
+            self.numberLinks = self.numberLinks + 1
+
             item.setText("LINK: {}".format(csvRow+1))
 
     def loadCsvColumns(self):
@@ -333,38 +393,34 @@ class mainWindow(QtWidgets.QWidget):
             self.myFieldLoader = fieldLoader(self)
             self.myFieldLoader.setTemplateName(fileList)
             self.myFieldLoader.updateProgress.connect(self.updateFieldLoadBar)
-            self.myFieldLoader.loadFinished.connect(self.loaddingComplete)
+            self.myFieldLoader.loadFinished.connect(self.loadingComplete)
             self.myFieldLoader.start()
 
     def updateFieldLoadBar(self, update):
         self.loadingWindow.progressBar.setValue(update)
 
-    def loaddingComplete(self, myList):
+    def loadingComplete(self, myList):
         if len(myList) > 0:
             self.loadingWindow.progressBar.setValue(100)
             time.sleep(0.1)
-            self.fieldFillData = dict()
-            self.fieldFillOrder = dict()
             signalBocker = QtCore.QSignalBlocker(self.tableWidget)
             self.tableWidget.setRowCount(0)
             for eachRow in myList:
                 row = self.tableWidget.rowCount()
                 self.tableWidget.insertRow(row)
-                self.fieldFillOrder[row] = eachRow['FieldName']
-                self.fieldFillData[eachRow['FieldName']] = None
                 self.tableWidget.setItem(row, 0, QtWidgets.QTableWidgetItem(eachRow['FieldName']))
                 self.tableWidget.setItem(row, 1, QtWidgets.QTableWidgetItem(eachRow['FieldType']))
                 self.tableWidget.setItem(row, 2, QtWidgets.QTableWidgetItem(""))
+                self.tableWidget.setItem(row, 3, QtWidgets.QTableWidgetItem("No"))
             tableHeader = self.tableWidget.horizontalHeader()
             tableHeader.setSectionResizeMode(0,3)
             tableHeader.setSectionResizeMode(1,3)
             tableHeader.setSectionResizeMode(2,1)
             self.loadingWindow.close()
-            print("Order: {}".format(self.fieldFillOrder))
-            print("Data: {}".format(self.fieldFillData))
             signalBocker = None #just to prevent pylinting errors of unsed varable
             self.linkColumnButton.setEnabled(True)
             self.unlinkColumnButton.setEnabled(True)
+            self.setNameButton.setEnabled(True)
         else:
             self.loadingWindow.close()
             self.templateLineEdit.setText("")
@@ -374,12 +430,13 @@ class mainWindow(QtWidgets.QWidget):
     def tableItemChanged(self, tableItem):
         print("item changed: {}".format(tableItem.text()))
         row = tableItem.row()
+        col = tableItem.column()
+        model = self.tableWidget.model()
+        index = model.createIndex(row, col)
         if len(tableItem.text()) > 0:
-            self.fieldFillData[self.fieldFillOrder[row]] = ("data", tableItem.text())
+            model.setData(index, ("data", tableItem.text()), QtCore.Qt.UserRole)
         else:
-            self.fieldFillData[self.fieldFillOrder[row]] = None
-        print("Order: {}".format(self.fieldFillOrder))
-        print("Data: {}".format(self.fieldFillData))
+            model.setData(index, None, QtCore.Qt.UserRole)
 
     def outputDirAction(self):
         fileDialog = QtWidgets.QFileDialog()
@@ -390,7 +447,9 @@ class mainWindow(QtWidgets.QWidget):
         if (fileDialog.exec_()):
             fileList = fileDialog.selectedFiles()[0]
             self.outputLineEdit.setText(fileList)
-            self.outputDir = fileList
+            return True
+        else:
+            return False
 
     def helpAction(self):
         self.helpWindow = uic.loadUi("help.ui")

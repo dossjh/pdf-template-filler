@@ -1,7 +1,7 @@
 #this code is from this stackover flow answer: https://stackoverflow.com/a/43789304/1994235
 import sys
 
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QSignalBlocker
 from PyQt5.QtGui import QDropEvent
 from PyQt5.QtWidgets import QTableWidget, QAbstractItemView, QTableWidgetItem, QWidget, QHBoxLayout, \
     QApplication
@@ -26,6 +26,7 @@ class TableWidgetDragRows(QTableWidget):
 
     def dropEvent(self, event: QDropEvent):
         if not event.isAccepted() and event.source() == self:
+            signalBocker = QSignalBlocker(self)
             drop_row = self.drop_on(event)
 
             rows = sorted(set(item.row() for item in self.selectedItems()))
